@@ -1,2 +1,3 @@
 # cubespintest0
-Config files for my GitHub profile.
+Cube that spins
+50x50 gif test for 128x64 screen module
