@@ -1,0 +1,325 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Spinning Cube Generator</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 600px;
+            margin: 50px auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            text-align: center;
+            color: #333;
+        }
+        .canvas-container {
+            text-align: center;
+            margin: 20px 0;
+        }
+        canvas {
+            border: 1px solid #ddd;
+            background: transparent;
+        }
+        .controls {
+            margin: 20px 0;
+        }
+        .slider-group {
+            margin: 15px 0;
+        }
+        .slider-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+            color: #555;
+        }
+        .slider-group input[type="range"] {
+            width: 100%;
+            height: 8px;
+            -webkit-appearance: none;
+            background: #ddd;
+            border-radius: 4px;
+            outline: none;
+        }
+        .slider-group input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 20px;
+            height: 20px;
+            background: #333;
+            border-radius: 50%;
+            cursor: pointer;
+        }
+        .value-display {
+            text-align: right;
+            font-size: 14px;
+            color: #666;
+            margin-top: 5px;
+        }
+        button {
+            width: 100%;
+            padding: 12px;
+            background: #333;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            font-size: 16px;
+            cursor: pointer;
+            margin-top: 10px;
+        }
+        button:hover {
+            background: #555;
+        }
+        .info {
+            margin-top: 20px;
+            padding: 15px;
+            background: #f9f9f9;
+            border-radius: 5px;
+            font-size: 14px;
+            color: #666;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Spinning Cube Generator</h1>
+        
+        <div class="canvas-container">
+            <canvas id="cubeCanvas" width="50" height="50"></canvas>
+        </div>
+        
+        <div class="controls">
+            <div class="slider-group">
+                <label for="xAngle">X-Axis Rotation (degrees)</label>
+                <input type="range" id="xAngle" min="0" max="180" value="0">
+                <div class="value-display" id="xValue">0°</div>
+            </div>
+            
+            <div class="slider-group">
+                <label for="yAngle">Y-Axis Rotation (degrees)</label>
+                <input type="range" id="yAngle" min="0" max="180" value="0">
+                <div class="value-display" id="yValue">0°</div>
+            </div>
+            
+            <div class="slider-group">
+                <label for="zAngle">Z-Axis Rotation (degrees)</label>
+                <input type="range" id="zAngle" min="0" max="180" value="0">
+                <div class="value-display" id="zValue">0°</div>
+            </div>
+            
+            <div class="slider-group">
+                <label for="speed">Speed (rotations per 28 frames)</label>
+                <input type="range" id="speed" min="1" max="4" step="0.1" value="1">
+                <div class="value-display" id="speedValue">1.0</div>
+            </div>
+        </div>
+        
+        <button onclick="downloadGIF()">Download as GIF</button>
+        
+        <div class="info">
+            <p><strong>Instructions:</strong> Adjust the sliders to set the initial rotation angles and animation speed. The cube will update in real-time. Click "Download as GIF" to save the animation.</p>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/gif.js@0.2.0/dist/gif.js"></script>
+    <script>
+        const canvas = document.getElementById('cubeCanvas');
+        const ctx = canvas.getContext('2d');
+        
+        // Cube vertices (centered at origin)
+        const size = 15;
+        const vertices = [
+            [-size, -size, -size],
+            [size, -size, -size],
+            [size, size, -size],
+            [-size, size, -size],
+            [-size, -size, size],
+            [size, -size, size],
+            [size, size, size],
+            [-size, size, size]
+        ];
+        
+        // Edges connecting vertices
+        const edges = [
+            [0, 1], [1, 2], [2, 3], [3, 0],
+            [4, 5], [5, 6], [6, 7], [7, 4],
+            [0, 4], [1, 5], [2, 6], [3, 7]
+        ];
+        
+        let currentFrame = 0;
+        let animationId = null;
+        
+        function rotateX(point, angle) {
+            const rad = angle * Math.PI / 180;
+            const cos = Math.cos(rad);
+            const sin = Math.sin(rad);
+            return [
+                point[0],
+                point[1] * cos - point[2] * sin,
+                point[1] * sin + point[2] * cos
+            ];
+        }
+        
+        function rotateY(point, angle) {
+            const rad = angle * Math.PI / 180;
+            const cos = Math.cos(rad);
+            const sin = Math.sin(rad);
+            return [
+                point[0] * cos + point[2] * sin,
+                point[1],
+                -point[0] * sin + point[2] * cos
+            ];
+        }
+        
+        function rotateZ(point, angle) {
+            const rad = angle * Math.PI / 180;
+            const cos = Math.cos(rad);
+            const sin = Math.sin(rad);
+            return [
+                point[0] * cos - point[1] * sin,
+                point[0] * sin + point[1] * cos,
+                point[2]
+            ];
+        }
+        
+        function project(point) {
+            const fov = 100;
+            const distance = 60;
+            const scale = fov / (distance + point[2]);
+            return [
+                point[0] * scale + 25,
+                point[1] * scale + 25
+            ];
+        }
+        
+        function drawCube(xAngle, yAngle, zAngle, frameRotation) {
+            ctx.clearRect(0, 0, 50, 50);
+            
+            // Apply all rotations to vertices
+            const transformedVertices = vertices.map(v => {
+                let rotated = rotateX(v, xAngle);
+                rotated = rotateY(rotated, yAngle);
+                rotated = rotateZ(rotated, zAngle);
+                rotated = rotateZ(rotated, frameRotation);
+                return rotated;
+            });
+            
+            // Project to 2D
+            const projected = transformedVertices.map(project);
+            
+            // Draw edges
+            ctx.strokeStyle = 'black';
+            ctx.lineWidth = 3;
+            ctx.lineCap = 'round';
+            
+            edges.forEach(edge => {
+                const [i, j] = edge;
+                ctx.beginPath();
+                ctx.moveTo(projected[i][0], projected[i][1]);
+                ctx.lineTo(projected[j][0], projected[j][1]);
+                ctx.stroke();
+            });
+        }
+        
+        function animate() {
+            const xAngle = parseFloat(document.getElementById('xAngle').value);
+            const yAngle = parseFloat(document.getElementById('yAngle').value);
+            const zAngle = parseFloat(document.getElementById('zAngle').value);
+            const speed = parseFloat(document.getElementById('speed').value);
+            
+            const frameRotation = (currentFrame / 28) * 360 * speed;
+            
+            drawCube(xAngle, yAngle, zAngle, frameRotation);
+            
+            currentFrame = (currentFrame + 1) % 28;
+            animationId = requestAnimationFrame(animate);
+        }
+        
+        function updateDisplays() {
+            document.getElementById('xValue').textContent = document.getElementById('xAngle').value + '°';
+            document.getElementById('yValue').textContent = document.getElementById('yAngle').value + '°';
+            document.getElementById('zValue').textContent = document.getElementById('zAngle').value + '°';
+            document.getElementById('speedValue').textContent = document.getElementById('speed').value;
+        }
+        
+        // Event listeners
+        ['xAngle', 'yAngle', 'zAngle', 'speed'].forEach(id => {
+            document.getElementById(id).addEventListener('input', updateDisplays);
+        });
+        
+        function downloadGIF() {
+            const xAngle = parseFloat(document.getElementById('xAngle').value);
+            const yAngle = parseFloat(document.getElementById('yAngle').value);
+            const zAngle = parseFloat(document.getElementById('zAngle').value);
+            const speed = parseFloat(document.getElementById('speed').value);
+            
+            const gif = new GIF({
+                workers: 2,
+                quality: 10,
+                width: 50,
+                height: 50,
+                transparent: 0x000000
+            });
+            
+            // Generate 28 frames
+            for (let i = 0; i < 28; i++) {
+                const tempCanvas = document.createElement('canvas');
+                tempCanvas.width = 50;
+                tempCanvas.height = 50;
+                const tempCtx = tempCanvas.getContext('2d');
+                
+                // Clear with transparent background
+                tempCtx.clearRect(0, 0, 50, 50);
+                
+                // Apply all rotations to vertices
+                const transformedVertices = vertices.map(v => {
+                    let rotated = rotateX(v, xAngle);
+                    rotated = rotateY(rotated, yAngle);
+                    rotated = rotateZ(rotated, zAngle);
+                    rotated = rotateZ(rotated, (i / 28) * 360 * speed);
+                    return rotated;
+                });
+                
+                // Project to 2D
+                const projected = transformedVertices.map(project);
+                
+                // Draw edges
+                tempCtx.strokeStyle = 'black';
+                tempCtx.lineWidth = 3;
+                tempCtx.lineCap = 'round';
+                
+                edges.forEach(edge => {
+                    const [ei, ej] = edge;
+                    tempCtx.beginPath();
+                    tempCtx.moveTo(projected[ei][0], projected[ei][1]);
+                    tempCtx.lineTo(projected[ej][0], projected[ej][1]);
+                    tempCtx.stroke();
+                });
+                
+                gif.addFrame(tempCanvas, {delay: 100, copy: true});
+            }
+            
+            gif.on('finished', function(blob) {
+                const link = document.createElement('a');
+                link.href = URL.createObjectURL(blob);
+                link.download = 'spinning_cube.gif';
+                link.click();
+            });
+            
+            gif.render();
+        }
+        
+        // Start animation
+        updateDisplays();
+        animate();
+    </script>
+</body>
+</html>
