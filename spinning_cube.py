@@ -4,13 +4,13 @@
 import numpy as np
 from PIL import Image, ImageDraw
 
-def create_cube_frame(frame_num, total_frames, size=400):
+def create_cube_frame(frame_num, total_frames, size=50):
     """Create a single frame of the spinning cube."""
     # Calculate rotation angle for this frame (full 360° rotation)
     angle = 2 * np.pi * frame_num / total_frames
     
     # Cube vertices (centered at origin)
-    cube_size = 100
+    cube_size = 15
     vertices = np.array([
         [-cube_size, -cube_size, -cube_size],
         [cube_size, -cube_size, -cube_size],
@@ -34,7 +34,7 @@ def create_cube_frame(frame_num, total_frames, size=400):
     rotated = vertices @ rotation_y.T
     
     # Simple perspective projection
-    distance = 400
+    distance = 60
     projected = []
     for v in rotated:
         z = v[2] + distance
@@ -42,44 +42,22 @@ def create_cube_frame(frame_num, total_frames, size=400):
         y = v[1] * distance / z
         projected.append((x + size//2, y + size//2))
     
-    # Define faces (indices of vertices)
-    faces = [
-        (0, 1, 2, 3),  # Back
-        (4, 5, 6, 7),  # Front
-        (0, 1, 5, 4),  # Bottom
-        (2, 3, 7, 6),  # Top
-        (0, 3, 7, 4),  # Left
-        (1, 2, 6, 5),  # Right
+    # Define edges (pairs of vertex indices)
+    edges = [
+        (0, 1), (1, 2), (2, 3), (3, 0),  # Back face
+        (4, 5), (5, 6), (6, 7), (7, 4),  # Front face
+        (0, 4), (1, 5), (2, 6), (3, 7)   # Connecting edges
     ]
     
-    # Face colors (different shades for visibility)
-    face_colors = [
-        '#4a4a4a',  # Back - dark gray
-        '#6a6a6a',  # Front - medium gray
-        '#5a5a5a',  # Bottom
-        '#7a7a7a',  # Top - light gray
-        '#505050',  # Left
-        '#606060',  # Right
-    ]
-    
-    # Create image
-    img = Image.new('RGB', (size, size), '#ffffff')
+    # Create image with transparent background
+    img = Image.new('RGBA', (size, size), (0, 0, 0, 0))
     draw = ImageDraw.Draw(img)
     
-    # Calculate face depths for simple Z-sorting
-    face_depths = []
-    for i, face in enumerate(faces):
-        avg_z = sum(rotated[v][2] for v in face) / 4
-        face_depths.append((avg_z, i))
-    
-    # Sort faces by depth (draw back faces first)
-    face_depths.sort()
-    
-    # Draw faces from back to front
-    for _, face_idx in face_depths:
-        face = faces[face_idx]
-        points = [projected[v] for v in face]
-        draw.polygon(points, fill=face_colors[face_idx], outline='#000000')
+    # Draw edges only (no faces)
+    for edge in edges:
+        p1 = projected[edge[0]]
+        p2 = projected[edge[1]]
+        draw.line([p1, p2], fill=(0, 0, 0, 255), width=4)
     
     return img
 
@@ -93,7 +71,7 @@ def main():
         frames.append(frame)
         print(f"  Frame {i+1}/{total_frames}")
     
-    # Save as GIF
+    # Save as GIF with transparency
     output_path = '/workspace/spinning_cube.gif'
     frames[0].save(
         output_path,
@@ -101,6 +79,7 @@ def main():
         append_images=frames[1:],
         duration=100,  # 100ms per frame = 10 FPS
         loop=0,  # Loop forever
+        transparency=0,
         disposal=2
     )
     
